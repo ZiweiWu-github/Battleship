@@ -1,16 +1,19 @@
 # depslib dependency file v1.0
-1546736502 source:c:\users\james wu\desktop\c projects\battleship\main.c
+1546812934 source:c:\users\james wu\desktop\c projects\battleship\main.c
 	<stdio.h>
 	<stdlib.h>
 	"player.h"
 	<time.h>
 	<windows.h>
 
-1546734026 source:c:\users\james wu\desktop\c projects\battleship\player.c
+1546812754 source:c:\users\james wu\desktop\c projects\battleship\player.c
 	<stdlib.h>
 	<stdio.h>
 	<stdint.h>
 	<string.h>
+	<ctype.h>
 
-1546733391 c:\users\james wu\desktop\c projects\battleship\player.h
+1546813424 c:\users\james wu\desktop\c projects\battleship\player.h
+
+1546737512 source:c:\users\james wu\desktop\c projects\battleship\resource.rc
 

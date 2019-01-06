@@ -27,9 +27,19 @@ int main()
     maximizeWindow();
     srand(time(NULL));
     clearScreen();
+
+
     Player p = createPlayer();
-    printGrids(p);
+    Enemy e = createEnemy();
+    playerSetup(p);
+    enemySetup(e);
+    for(int i = 0; i<100; ++i){
+        playerTurn(p, e);
+    }
+
     freePlayer(p);
+    freeEnemy(e);
+
     while(getchar()!= '\n');
     return 0;
 }
