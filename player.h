@@ -1,3 +1,4 @@
+#include <stdint.h>
 #ifndef PLAYER_H_INCLUDED
 #define PLAYER_H_INCLUDED
 
@@ -21,13 +22,11 @@ void playerSetup(struct player* p);
 void enemySetup(struct enemy *e);
 
 void playerTurn(struct player* p , struct enemy *e);
-
-///Below are TODO functions
 void enemyTurn(struct enemy *e, struct player* p );
 
-///already done
 void clearScreen(void);
 void printGrids(struct player *p);
 
+uint8_t gameOver(struct player *p, struct enemy *e);
 
 #endif // PLAYER_H_INCLUDED

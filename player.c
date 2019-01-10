@@ -28,10 +28,13 @@ void clearScreen(void){
     }
 }
 
-
-typedef enum shipArrangement{
+typedef enum shipArrangement{ ///enums for the arrangement of the ship
     Vertical, Horizontal
 }ShipArrangement;
+
+typedef enum hitDirection{ ///enums to direct the enemy AI where to shoot at
+    Up, Left, Right, Down, None
+}HitDirection;
 
 /**
 *** Below are the struct and functions for the player
@@ -55,7 +58,6 @@ void resetPlayer(struct player *p){
         }
     }
 }
-
 
 struct player* createPlayer(void){
     struct player* p = malloc(sizeof *p);
@@ -116,21 +118,33 @@ void freePlayer(struct player *p){
 struct enemy{
     struct player *enemyPlayer;
     bool lastShotHit;
-    bool lastShotSank;
-    uint8_t lastXHit, lastYHit;
+    uint8_t lastRowHit, lastColHit, firstRowHit, firstColHit;
+    HitDirection lastSuccessfulHitDirection;
+    bool rightSideAlreadyHit, leftSideAlreadyHit, upSideAlreadyHit, downSideAlreadyHit;
 };
+
+void resetEnemyBools(struct enemy *e){
+    e->lastShotHit = false;
+    e->downSideAlreadyHit = false;
+    e->upSideAlreadyHit = false;
+    e->leftSideAlreadyHit = false;
+    e->rightSideAlreadyHit = false;
+    e->lastSuccessfulHitDirection = None;
+}
 
 void resetEnemy(struct enemy *e){
     resetPlayer(e->enemyPlayer);
-    e->lastShotHit = false;
-    e->lastShotSank = false;
+    resetEnemyBools(e);
 }
 
 struct enemy* createEnemy(void){
     struct enemy* e= malloc(sizeof *e);
     e->enemyPlayer = createPlayer();
     e->lastShotHit = false;
-    e->lastShotSank = false;
+    e->downSideAlreadyHit = false;
+    e->upSideAlreadyHit = false;
+    e->leftSideAlreadyHit = false;
+    e->rightSideAlreadyHit = false;
     return e;
 }
 
@@ -378,27 +392,261 @@ void playerTurn(struct player *p, struct enemy *e){
         break;
     }
 
-    /// if the location is new, then
-    /// 1. check if there is a ship (not == NULL)
-    /// 2. mark the player's enemy grid
-    /// also damage enemy ship, enemy loses 1 if hp == 0
-
     Ship s = e->enemyPlayer->playerGrid[row][col].s;
-    if(s != NULL){
+
+    if(s != NULL){ ///there is a ship at that location
         p->enemyGrid[row][col] = 'H';
         --s->hp;
+        clearScreen();
+        printGrids(p);
+
+        if(s->hp == 0){
+            printf("\n\nYOU'VE SUNK THE ENEMY'S %s!\n\n", s->name);
+            --e->enemyPlayer->shipsLeft;
+        }
+        else{
+            printf("\n\nYou've hit an enemy ship!\n\n");
+        }
     }
-    else{
+    else{ ///There is no ship at that location
         p->enemyGrid[row][col] = 'M';
-    }
-    clearScreen();
-    printGrids(p);
-    if(s!=NULL && s->hp == 0){
-        printf("\n\n\nYOU'VE SUNK THE ENEMY'S %s!\n\n\n", s->name);
-        --e->enemyPlayer->shipsLeft;
+        clearScreen();
+        printGrids(p);
+        printf("\n\nYou've missed your shot!\n\n");
     }
 
     while(getchar()!='\n');
-    printf("Press ENTER to end turn\n\n\n");
+    printf("Press ENTER to YOUR turn\n\n\n"); ///allow the player the ability to see the text before it disappears
     while(getchar()!='\n');
+}
+
+
+char intToChar(int i){
+    switch(i){
+        case 0: return 'A';
+        case 1: return 'B';
+        case 2: return 'C';
+        case 3: return 'D';
+        case 4: return 'E';
+        case 5: return 'F';
+        case 6: return 'G';
+        case 7: return 'H';
+        case 8: return 'I';
+        default: return 'J';
+    }
+}
+
+
+void nextRowAndCol(int lastRow, int lastCol, HitDirection dir, int *nextRow, int *nextCol){
+    switch(dir){
+        case Up:
+            *nextRow = lastRow - 1;
+            *nextCol = lastCol;
+            break;
+        case Down:
+            *nextRow = lastRow + 1;
+            *nextCol = lastCol;
+            break;
+        case Left:
+            *nextRow = lastRow;
+            *nextCol = lastCol - 1;
+            break;
+        case Right:
+            *nextRow = lastRow;
+            *nextCol = lastCol + 1;
+            break;
+        default: break;
+    }
+}
+
+bool hasBeenHitByEnemy(struct player *p, int row, int col){
+    if(p->playerGrid[row][col].gridChar == 'H' || p->playerGrid[row][col].gridChar == 'M'){
+        return true;
+    }
+    else return false;
+}
+
+void enemyTurn(struct enemy *e, struct player *p){
+    int row = 0,col = 0;
+
+    ///if the last shot did not hit, randomly choose a location to target (that has not been used yet)
+    if(!e->lastShotHit){
+        while(1){
+            row = rand() % 10;
+            col = rand() % 10;
+
+            ///if the shot has been taken already, choose another random location
+            if(hasBeenHitByEnemy(p, row, col)) continue;
+            break;
+        }
+        ///determine if the shot has missed or hit
+        Ship s = p->playerGrid[row][col].s;
+
+        if(s != NULL){ ///shot has hit something
+            --s->hp;
+            p->playerGrid[row][col].gridChar = 'H';
+            e->lastShotHit = true;
+            e->firstRowHit = row;
+            e->firstColHit = col;
+            e->lastRowHit = row;
+            e->lastColHit = col;
+            clearScreen();
+            printGrids(p);
+            if(s->hp == 0){
+                printf("\n\nThe enemy has shot at %c%d and has sunk your %s!\n\n", intToChar(col), row+1, s->name);
+                --p->shipsLeft;
+                resetEnemyBools(e);
+            }
+            else printf("\n\nThe enemy has shot at %c%d and hit your %s!\n\n", intToChar(col), row+1, s->name);
+        }
+        else{ ///the shot missed
+            p->playerGrid[row][col].gridChar = 'M';
+            clearScreen();
+            printGrids(p);
+            printf("\n\nThe enemy has shot at %c%d and missed!\n\n", intToChar(col), row+1);
+        }
+    }
+
+    else{ ///have the AI try to guess where the rest of your ship is
+        if(e->lastSuccessfulHitDirection == None){ ///we aint go a clue where to shoot next, boss
+            ///first, create an array of options
+            int optionsSize = 0;
+
+            ///we have to determine the array size by doing annoying counting
+            if(!e->downSideAlreadyHit && e->lastRowHit != 9 && !hasBeenHitByEnemy(p, e->lastRowHit+1, e->lastColHit)) ++optionsSize;
+            if(!e->leftSideAlreadyHit && e->lastColHit != 0 && !hasBeenHitByEnemy(p, e->lastRowHit, e->lastColHit-1)) ++optionsSize;
+            if(!e->rightSideAlreadyHit && e->lastColHit != 9 && !hasBeenHitByEnemy(p, e->lastRowHit, e->lastColHit+1)) ++optionsSize;
+            if(!e->upSideAlreadyHit && e->firstRowHit != 0 && !hasBeenHitByEnemy(p, e->lastRowHit-1, e->lastColHit)) ++optionsSize;
+
+            if(optionsSize == 0){ ///if for some reason there are no options to shoot, then go back to randomly shooting
+                resetEnemyBools(e);
+                enemyTurn(e, p);
+                return;
+            }
+
+            HitDirection *options = malloc(optionsSize * sizeof *options);
+            int optionsIndex = 0;
+
+            ///then, actually put the options into the array
+            if(!e->downSideAlreadyHit && e->lastRowHit != 9 && !hasBeenHitByEnemy(p, e->lastRowHit+1, e->lastColHit)) options[optionsIndex++] = Down;
+            if(!e->leftSideAlreadyHit && e->lastColHit != 0 && !hasBeenHitByEnemy(p, e->lastRowHit, e->lastColHit-1)) options[optionsIndex++] = Left;
+            if(!e->rightSideAlreadyHit && e->lastColHit != 9 && !hasBeenHitByEnemy(p, e->lastRowHit, e->lastColHit+1)) options[optionsIndex++] = Right;
+            if(!e->upSideAlreadyHit && e->firstRowHit != 0 && !hasBeenHitByEnemy(p, e->lastRowHit-1, e->lastColHit)) options[optionsIndex++] = Up;
+
+
+            ///Choose the direction to attack from the available options
+            HitDirection decision = options[rand() % optionsSize];
+
+            nextRowAndCol(e->lastRowHit, e->lastColHit, decision, &row, &col);
+
+            ///the attack options have already been out-of-bounds checked, so we don't need to do that
+
+            Ship s = p->playerGrid[row][col].s;
+
+            if(s != NULL){ ///hit
+                p->playerGrid[row][col].gridChar = 'H';
+                e->lastRowHit = row;
+                e->lastColHit = col;
+                e->lastSuccessfulHitDirection = decision;
+                --s->hp;
+                clearScreen();
+                printGrids(p);
+                if(s->hp == 0){
+                    printf("\n\nThe enemy has shot at %c%d and has sunk your %s!\n\n", intToChar(col), row+1, s->name);
+                    --p->shipsLeft;
+                    resetEnemyBools(e);
+                }
+                else printf("\n\nThe enemy has shot at %c%d and hit your %s!\n\n", intToChar(col), row+1, s->name);
+            }
+            else{///miss
+                p->playerGrid[row][col].gridChar = 'M';
+                clearScreen();
+                printGrids(p);
+                printf("\n\nThe enemy has shot at %c%d and missed!\n\n", intToChar(col), row+1);
+            }
+
+            free(options);
+
+            switch(decision){
+                case Up:
+                    e->upSideAlreadyHit = true;
+                    break;
+                case Down:
+                    e->downSideAlreadyHit = true;
+                    break;
+                case Left:
+                    e->leftSideAlreadyHit = true;
+                    break;
+                case Right:
+                    e->rightSideAlreadyHit = true;
+                    break;
+                default: break;
+            }
+        }
+
+        else{ ///the AI knows where the rest of your ship is, or at least where it SHOULD be
+
+            ///first of all, get the next shot based on previous success
+            nextRowAndCol(e->lastRowHit, e->lastColHit, e->lastSuccessfulHitDirection, &row, &col);
+
+            ///bounds checking
+            if(row >= 10 || row < 0 || col >= 10 || col < 0){
+                e->lastRowHit = e->firstRowHit;
+                e->lastColHit = e->firstColHit;
+                e->lastSuccessfulHitDirection = None;
+                enemyTurn(e,p); ///take the shot again
+                return;
+            }
+            else{
+                ///if not out of bounds, then check for hit or miss
+                Ship s= p->playerGrid[row][col].s;
+
+                if(s!=NULL){///hit
+                    p->playerGrid[row][col].gridChar = 'H';
+                    e->lastRowHit = row;
+                    e->lastColHit = col;
+                    --s->hp;
+                    clearScreen();
+                    printGrids(p);
+                    if(s->hp == 0){
+                        printf("\n\nThe enemy has shot at %c%d and has sunk your %s!\n\n", intToChar(col), row+1, s->name);
+                        --p->shipsLeft;
+                        resetEnemyBools(e);
+                    }
+                    else printf("\n\nThe enemy has shot at %c%d and hit your %s!\n\n", intToChar(col), row+1, s->name);
+                }
+                else{ ///miss
+                    p->playerGrid[row][col].gridChar = 'M';
+                    clearScreen();
+                    printGrids(p);
+                    printf("\n\nThe enemy has shot at %c%d and missed!\n\n", intToChar(col), row+1);
+                    e->lastRowHit = e->firstRowHit;
+                    e->lastColHit = e->firstColHit;
+                    e->lastSuccessfulHitDirection = None;
+                }
+            }
+        }
+    }
+
+    ///while(getchar()!='\n');
+    printf("Press ENTER to end ENEMY'S turn\n\n"); ///allow the player the ability to see the text before it disappears
+    while(getchar()!='\n');
+}
+
+bool gameOver(struct player *p, struct enemy *e){
+    if(p->shipsLeft == 0){
+        clearScreen();
+        printGrids(p);
+        printf("\n\nALL OF YOUR SHIPS HAVE BEEN SUNK!!! THE ENEMY IS VICTORIOUS!!!\n\n");
+        return true;
+    }
+    else if(e->enemyPlayer->shipsLeft == 0){
+        clearScreen();
+        printGrids(p);
+        printf("\n\nALL THE ENEMY'S SHIPS HAVE BEEN SUNK!!! YOU ARE VICTORIOUS!!!\n\n");
+        return true;
+    }
+    else{
+        return false;
+    }
 }

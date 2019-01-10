@@ -33,8 +33,11 @@ int main()
     Enemy e = createEnemy();
     playerSetup(p);
     enemySetup(e);
-    for(int i = 0; i<100; ++i){
-        playerTurn(p, e);
+    while(1){
+        playerTurn(p,e);
+        if(gameOver(p,e)) break;
+        enemyTurn(e,p);
+        if(gameOver(p,e)) break;
     }
 
     freePlayer(p);
